@@ -10,6 +10,7 @@ import (
 	"time"
 
 	lock "github.com/square/mongo-lock"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPurge(t *testing.T) {
@@ -24,17 +25,11 @@ func TestPurge(t *testing.T) {
 
 	// Create some locks.
 	err := client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.XLock(ctx, "resource2", "bbbb", lock.LockDetails{TTL: 1})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource3", "cccc", lock.LockDetails{TTL: 1}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Sleep for a second to let TTLs expire
 	time.Sleep(time.Duration(1500) * time.Millisecond)
@@ -42,23 +37,14 @@ func TestPurge(t *testing.T) {
 	// Purge the locks.
 	purger := lock.NewPurger(client)
 	purged, err := purger.Purge(ctx)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(purged) != 2 {
-		t.Errorf("%d locks purged, expected %d", len(purged), 2)
-	}
+	assert.NoError(t, err)
+	assert.Len(t, purged, 2, "expected 2 locks to be purged")
 
 	var purgedSorted lock.LockStatusesByCreatedAtDesc
 	purgedSorted = purged
 	sort.Sort(purgedSorted)
-	if purged[0].Resource != "resource3" {
-		t.Errorf("purged[0].Resource = %s, expected %s", purged[0].Resource, "resource3")
-	}
-	if purged[1].Resource != "resource2" {
-		t.Errorf("purged[1].Resource = %s, expected %s", purged[1].Resource, "resource2")
-	}
+	assert.Equal(t, "resource3", purged[0].Resource, "expected resource3 to be purged first")
+	assert.Equal(t, "resource2", purged[1].Resource, "expected resource2 to be purged second")
 }
 
 func TestPurgeSameLockIdDiffTTLs(t *testing.T) {
@@ -73,17 +59,11 @@ func TestPurgeSameLockIdDiffTTLs(t *testing.T) {
 
 	// Create some locks with different TTLs, all owned by the same lockId.
 	err := client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{}) // no TTL
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.XLock(ctx, "resource2", "aaaa", lock.LockDetails{TTL: 30})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource3", "aaaa", lock.LockDetails{TTL: 1}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Sleep for a second to let some TTLs expire
 	time.Sleep(time.Duration(1500) * time.Millisecond)
@@ -91,24 +71,13 @@ func TestPurgeSameLockIdDiffTTLs(t *testing.T) {
 	// Purge the locks.
 	purger := lock.NewPurger(client)
 	purged, err := purger.Purge(ctx)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(purged) != 3 {
-		t.Errorf("%d locks purged, expected %d", len(purged), 3)
-	}
+	assert.NoError(t, err)
+	assert.Len(t, purged, 3, "expected 3 locks to be purged")
 
 	var purgedSorted lock.LockStatusesByCreatedAtDesc
 	purgedSorted = purged
 	sort.Sort(purgedSorted)
-	if purged[0].Resource != "resource3" {
-		t.Errorf("purged[0].Resource = %s, expected %s", purged[0].Resource, "resource3")
-	}
-	if purged[1].Resource != "resource2" {
-		t.Errorf("purged[1].Resource = %s, expected %s", purged[1].Resource, "resource2")
-	}
-	if purged[2].Resource != "resource1" {
-		t.Errorf("purged[2].Resource = %s, expected %s", purged[2].Resource, "resource1")
-	}
+	assert.Equal(t, "resource3", purged[0].Resource, "expected resource3 to be purged first")
+	assert.Equal(t, "resource2", purged[1].Resource, "expected resource2 to be purged second")
+	assert.Equal(t, "resource1", purged[2].Resource, "expected resource1 to be purged last")
 }

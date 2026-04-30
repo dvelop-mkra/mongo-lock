@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-test/deep"
+	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -80,14 +80,10 @@ func TestCreateIndexes(t *testing.T) {
 	client := lock.NewClient(collection)
 
 	err := client.CreateIndexes(ctx)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	cur, err := collection.Indexes().List(ctx)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	defer cur.Close(ctx)
 
 	expectedIndexes := []index{
@@ -132,10 +128,7 @@ func TestCreateIndexes(t *testing.T) {
 	if len(indexes) != 6 {
 		t.Errorf("expected 6 indexes. found %d", len(indexes))
 	}
-
-	if diff := deep.Equal(indexes, expectedIndexes); diff != nil {
-		t.Error(diff)
-	}
+	assert.Equal(t, indexes, expectedIndexes)
 }
 
 func TestLockExclusive(t *testing.T) {
@@ -149,17 +142,11 @@ func TestLockExclusive(t *testing.T) {
 
 	// Create some locks.
 	err := client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.XLock(ctx, "resource2", "aaaa", lock.LockDetails{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.XLock(ctx, "resource3", "bbbb", lock.LockDetails{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Try to lock something that's already locked.
 	err = client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{})
@@ -175,18 +162,14 @@ func TestLockExclusive(t *testing.T) {
 	// that resource expires after some time
 	// then with same resource name and lockId can able to create lock.
 	err = client.XLock(ctx, "resource4", "cccc", lock.LockDetails{TTL: 1})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Waiting to expire the lock with resource name "resource4" and lockId "cccc".
 	time.Sleep(1100 * time.Millisecond)
 
 	// Try to lock "reource4" with "cccc", which is already expired.
 	err = client.XLock(ctx, "resource4", "cccc", lock.LockDetails{})
-	if err != nil {
-		t.Errorf("err = %s, failed to lock due to the resource already being locked", err)
-	}
+	assert.NoError(t, err)
 
 }
 
@@ -199,27 +182,17 @@ func TestLockShared(t *testing.T) {
 
 	// Create some locks.
 	err := client.SLock(ctx, "resource1", "aaaa", lock.LockDetails{}, 10)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource1", "bbbb", lock.LockDetails{}, 10)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource2", "bbbb", lock.LockDetails{}, 10)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Try to create a shared lock that already exists.
 	err = client.SLock(ctx, "resource1", "aaaa", lock.LockDetails{}, 10)
-	if err != lock.ErrAlreadyLocked {
-		t.Errorf("err = %s, expected the lock to fail due to the resource already being locked", err)
-	}
+	assert.Equal(t, lock.ErrAlreadyLocked, err)
 	err = client.SLock(ctx, "resource2", "bbbb", lock.LockDetails{}, 10)
-	if err != lock.ErrAlreadyLocked {
-		t.Errorf("err = %s, expected the lock to fail due to the resource already being locked", err)
-	}
+	assert.Equal(t, lock.ErrAlreadyLocked, err)
 }
 
 func TestLockMaxConcurrent(t *testing.T) {
@@ -233,19 +206,13 @@ func TestLockMaxConcurrent(t *testing.T) {
 
 	// Create some locks.
 	err := client.SLock(ctx, "resource1", "aaaa", lock.LockDetails{}, 2)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource1", "bbbb", lock.LockDetails{}, 2)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Try to create a third lock, which will be more than maxConcurrent.
 	err = client.SLock(ctx, "resource1", "cccc", lock.LockDetails{}, 2)
-	if err != lock.ErrAlreadyLocked {
-		t.Errorf("err = %s, expected the lock to fail due to the resource already being locked", err)
-	}
+	assert.Equal(t, lock.ErrAlreadyLocked, err)
 }
 
 func TestLockInteractions(t *testing.T) {
@@ -260,24 +227,16 @@ func TestLockInteractions(t *testing.T) {
 	// Trying to create a shared lock on a resource that already has an
 	// exclusive lock in it should return an error.
 	err := client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource1", "bbbb", lock.LockDetails{}, -1)
-	if err != lock.ErrAlreadyLocked {
-		t.Errorf("err = %s, expected the lock to fail due to the resource already being locked", err)
-	}
+	assert.Equal(t, lock.ErrAlreadyLocked, err)
 
 	// Trying to create an exclusive lock on a resource that already has a
 	// shared lock in it should return an error.
 	err = client.SLock(ctx, "resource2", "aaaa", lock.LockDetails{}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.XLock(ctx, "resource2", "bbbb", lock.LockDetails{})
-	if err != lock.ErrAlreadyLocked {
-		t.Errorf("err = %s, expected the lock to fail due to the resource already being locked", err)
-	}
+	assert.Equal(t, lock.ErrAlreadyLocked, err)
 }
 
 func TestUnlock(t *testing.T) {
@@ -291,44 +250,24 @@ func TestUnlock(t *testing.T) {
 
 	// Unlock an exclusive lock.
 	err := client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	unlocked, err := client.Unlock(ctx, "aaaa")
-	if err != nil {
-		t.Error(err)
-	}
-	if len(unlocked) != 1 {
-		t.Errorf("%d resources unlocked, expected %d", len(unlocked), 1)
-	}
-	if unlocked[0].Resource != "resource1" && unlocked[0].LockId != "aaaa" {
-		t.Errorf("did not unlock the correct thing")
-	}
+	assert.NoError(t, err)
+	assert.Len(t, unlocked, 1, "expected to unlock exactly 1 resource")
+	assert.Equal(t, "resource1", unlocked[0].Resource, "unlocked the wrong resource")
 
 	// Unlock a shared lock.
 	err = client.SLock(ctx, "resource2", "bbbb", lock.LockDetails{}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	unlocked, err = client.Unlock(ctx, "bbbb")
-	if err != nil {
-		t.Error(err)
-	}
-	if len(unlocked) != 1 {
-		t.Errorf("%d resources unlocked, expected %d", len(unlocked), 1)
-	}
-	if unlocked[0].Resource != "resource2" && unlocked[0].LockId != "bbbb" {
-		t.Errorf("did not unlock the correct thing")
-	}
+	assert.NoError(t, err)
+	assert.Len(t, unlocked, 1, "expected to unlock exactly 1 resource")
+	assert.Equal(t, "resource2", unlocked[0].Resource, "unlocked the wrong resource")
 
 	// Try to unlock a lockId that doesn't exist.
 	unlocked, err = client.Unlock(ctx, "zzzz")
-	if err != nil {
-		t.Error(err)
-	}
-	if len(unlocked) != 0 {
-		t.Errorf("%d resources unlocked, expected %d", len(unlocked), 0)
-	}
+	assert.NoError(t, err)
+	assert.Len(t, unlocked, 0, "expected to not unlock any resources")
 }
 
 func TestUnlockOrder(t *testing.T) {
@@ -342,41 +281,26 @@ func TestUnlockOrder(t *testing.T) {
 
 	// Create some locks.
 	err := client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource4", "aaaa", lock.LockDetails{}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.XLock(ctx, "resource3", "bbbb", lock.LockDetails{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource2", "bbbb", lock.LockDetails{}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource2", "aaaa", lock.LockDetails{}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Make sure they are unlocked in the order of newest to oldest.
 	unlocked, err := client.Unlock(ctx, "aaaa")
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	actual := []string{}
 	for _, l := range unlocked {
 		actual = append(actual, l.Resource)
 	}
 
-	expected := []string{"resource2", "resource4", "resource1"}
-	if diff := deep.Equal(actual, expected); diff != nil {
-		t.Error(diff)
-	}
+	assert.Equal(t, []string{"resource2", "resource4", "resource1"}, actual, "unlocked resources in the wrong order")
 }
 
 func TestStatusFilterTTLgte(t *testing.T) {
@@ -389,9 +313,7 @@ func TestStatusFilterTTLgte(t *testing.T) {
 	client := lock.NewClient(collection)
 
 	_, err := initLockStatusLocks(client)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	///////////////////////////////////////////////////////////////////////
 	// Filter on TTL greater than.
@@ -400,9 +322,7 @@ func TestStatusFilterTTLgte(t *testing.T) {
 		TTLgte: 3700,
 	}
 	actual, err := client.Status(ctx, f)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// These must be in the order of LockStatusesByCreatedAtDesc.
 	expected := []lock.LockStatus{
@@ -418,10 +338,8 @@ func TestStatusFilterTTLgte(t *testing.T) {
 		},
 	}
 
-	err = validateLockStatuses(actual, expected)
-	if err != nil {
-		t.Error(err)
-	}
+	validateLockStatuses(t, actual, expected)
+	assert.NoError(t, err)
 }
 
 func TestStatusFilterTTLlt(t *testing.T) {
@@ -434,9 +352,7 @@ func TestStatusFilterTTLlt(t *testing.T) {
 	client := lock.NewClient(collection)
 
 	_, err := initLockStatusLocks(client)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	///////////////////////////////////////////////////////////////////////
 	// Filter on TTL less than. Shouldn't include locks with no TTL.
@@ -445,16 +361,12 @@ func TestStatusFilterTTLlt(t *testing.T) {
 		TTLlt: 600,
 	}
 	actual, err := client.Status(ctx, f)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	expected := []lock.LockStatus{}
 
-	err = validateLockStatuses(actual, expected)
-	if err != nil {
-		t.Error(err)
-	}
+	validateLockStatuses(t, actual, expected)
+	assert.NoError(t, err)
 }
 
 func TestStatusFilterCreatedAfter(t *testing.T) {
@@ -467,9 +379,7 @@ func TestStatusFilterCreatedAfter(t *testing.T) {
 	client := lock.NewClient(collection)
 
 	recordedTime, err := initLockStatusLocks(client)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	///////////////////////////////////////////////////////////////////////
 	// Filter on CreatedAfter.
@@ -478,9 +388,7 @@ func TestStatusFilterCreatedAfter(t *testing.T) {
 		CreatedAfter: recordedTime,
 	}
 	actual, err := client.Status(ctx, f)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// These must be in the order of LockStatusesByCreatedAtDesc.
 	expected := []lock.LockStatus{
@@ -502,10 +410,8 @@ func TestStatusFilterCreatedAfter(t *testing.T) {
 		},
 	}
 
-	err = validateLockStatuses(actual, expected)
-	if err != nil {
-		t.Error(err)
-	}
+	validateLockStatuses(t, actual, expected)
+	assert.NoError(t, err)
 }
 
 func TestStatusFilterCreatedBefore(t *testing.T) {
@@ -518,9 +424,7 @@ func TestStatusFilterCreatedBefore(t *testing.T) {
 	client := lock.NewClient(collection)
 
 	recordedTime, err := initLockStatusLocks(client)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	///////////////////////////////////////////////////////////////////////
 	// Filter on CreatedBefore.
@@ -529,9 +433,7 @@ func TestStatusFilterCreatedBefore(t *testing.T) {
 		CreatedBefore: recordedTime,
 	}
 	actual, err := client.Status(ctx, f)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// These must be in the order of LockStatusesByCreatedAtDesc.
 	expected := []lock.LockStatus{
@@ -557,10 +459,8 @@ func TestStatusFilterCreatedBefore(t *testing.T) {
 		},
 	}
 
-	err = validateLockStatuses(actual, expected)
-	if err != nil {
-		t.Error(err)
-	}
+	validateLockStatuses(t, actual, expected)
+	assert.NoError(t, err)
 }
 
 func TestStatusFilterOwner(t *testing.T) {
@@ -573,9 +473,7 @@ func TestStatusFilterOwner(t *testing.T) {
 	client := lock.NewClient(collection)
 
 	_, err := initLockStatusLocks(client)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	///////////////////////////////////////////////////////////////////////
 	// Filter on Owner.
@@ -584,9 +482,7 @@ func TestStatusFilterOwner(t *testing.T) {
 		Owner: "smith",
 	}
 	actual, err := client.Status(ctx, f)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// These must be in the order of LockStatusesByCreatedAtDesc.
 	expected := []lock.LockStatus{
@@ -604,10 +500,8 @@ func TestStatusFilterOwner(t *testing.T) {
 		},
 	}
 
-	err = validateLockStatuses(actual, expected)
-	if err != nil {
-		t.Error(err)
-	}
+	validateLockStatuses(t, actual, expected)
+	assert.NoError(t, err)
 }
 
 func TestStatusFilterMultiple(t *testing.T) {
@@ -620,9 +514,7 @@ func TestStatusFilterMultiple(t *testing.T) {
 	client := lock.NewClient(collection)
 
 	_, err := initLockStatusLocks(client)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	///////////////////////////////////////////////////////////////////////
 	// Filter on TTL, Resource, and LockId.
@@ -633,9 +525,7 @@ func TestStatusFilterMultiple(t *testing.T) {
 		LockId:   "aaaa",
 	}
 	actual, err := client.Status(ctx, f)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// These must be in the order of LockStatusesByCreatedAtDesc.
 	expected := []lock.LockStatus{
@@ -648,10 +538,8 @@ func TestStatusFilterMultiple(t *testing.T) {
 		},
 	}
 
-	err = validateLockStatuses(actual, expected)
-	if err != nil {
-		t.Error(err)
-	}
+	validateLockStatuses(t, actual, expected)
+	assert.NoError(t, err)
 }
 
 func TestStatusTTLValue(t *testing.T) {
@@ -665,19 +553,13 @@ func TestStatusTTLValue(t *testing.T) {
 
 	// Create a lock with a TTL.
 	err := client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{TTL: 3600})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	// Create a lock without a TTL.
 	err = client.XLock(ctx, "resource2", "bbbb", lock.LockDetails{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	// Create a lock with a low TTL.
 	err = client.XLock(ctx, "resource3", "cccc", lock.LockDetails{TTL: 1})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Make sure we get back a similar TTL when querying the status of the
 	// lock with a TTL.
@@ -685,34 +567,18 @@ func TestStatusTTLValue(t *testing.T) {
 		LockId: "aaaa",
 	}
 	actual, err := client.Status(ctx, f)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(actual) != 1 {
-		t.Errorf("got the status of %d locks, expected %d", len(actual), 1)
-	}
-
-	if actual[0].TTL > 3600 || actual[0].TTL < 3575 {
-		t.Errorf("ttl = %d, expected it to be between 3575 and 3600", actual[0].TTL)
-	}
+	assert.NoError(t, err)
+	assert.Len(t, actual, 1, "expected to get the status of exactly 1 lock")
+	assert.True(t, actual[0].TTL > 3575 && actual[0].TTL <= 3600, "ttl = %d, expected it to be between 3575 and 3600", actual[0].TTL)
 
 	// Make sure we get back -1 for the TTL for the lock without one.
 	f = lock.Filter{
 		LockId: "bbbb",
 	}
 	actual, err = client.Status(ctx, f)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(actual) != 1 {
-		t.Errorf("got the status of %d locks, expected %d", len(actual), 1)
-	}
-
-	if actual[0].TTL != -1 {
-		t.Errorf("ttl = %d, expected %d", actual[0].TTL, -1)
-	}
+	assert.NoError(t, err)
+	assert.Len(t, actual, 1, "expected to get the status of exactly 1 lock")
+	assert.Equal(t, -1, int(actual[0].TTL), "ttl = %d, expected %d", actual[0].TTL, -1)
 
 	// Sleep for 2 seconds to ensure that the lock on resource3 expired at
 	// least 2 seconds ago.
@@ -723,17 +589,9 @@ func TestStatusTTLValue(t *testing.T) {
 		LockId: "cccc",
 	}
 	actual, err = client.Status(ctx, f)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(actual) != 1 {
-		t.Errorf("got the status of %d locks, expected %d", len(actual), 1)
-	}
-
-	if actual[0].TTL != 0 {
-		t.Errorf("ttl = %d, expected %d", actual[0].TTL, 0)
-	}
+	assert.NoError(t, err)
+	assert.Len(t, actual, 1, "expected to get the status of exactly 1 lock")
+	assert.Equal(t, 0, int(actual[0].TTL), "ttl = %d, expected %d", actual[0].TTL, 0)
 }
 
 func TestRenew(t *testing.T) {
@@ -749,59 +607,33 @@ func TestRenew(t *testing.T) {
 	// lock that we will attempt to renew. If the renew operation is done wrong
 	// this lock will be renewed instead of the proper one.
 	err := client.SLock(ctx, "resource4", "cccc", lock.LockDetails{TTL: 3600}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Create some locks.
 	err = client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{TTL: 3600})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource4", "aaaa", lock.LockDetails{TTL: 3600}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.XLock(ctx, "resource3", "bbbb", lock.LockDetails{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource2", "bbbb", lock.LockDetails{}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource2", "aaaa", lock.LockDetails{TTL: 3600}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Verify that locks with the given lockId have their TTL updated.
 	renewed, err := client.Renew(ctx, "aaaa", 7200)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(renewed) != 3 {
-		t.Errorf("%d locks renewed, expected %d", len(renewed), 3)
-	}
+	assert.NoError(t, err)
+	assert.Len(t, renewed, 3, "expected to renew exactly 3 locks")
 
 	f := lock.Filter{
 		LockId: "aaaa",
 	}
 	actual, err := client.Status(ctx, f)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(actual) != 3 {
-		t.Errorf("got the status of %d locks, expected %d", len(actual), 1)
-	}
-
+	assert.NoError(t, err)
+	assert.Len(t, actual, 3, "expected to get the status of 3 locks with lockId=aaaa")
 	for _, a := range actual {
-		if a.TTL > 7200 || a.TTL < 7175 {
-			t.Errorf("ttl = %d for resource=%s lockId=%s, expected it to be between 7175 and 7200",
-				a.TTL, a.Resource, a.LockId)
-		}
+		assert.True(t, a.TTL > 7175 && a.TTL <= 7200, "ttl = %d for resource=%s lockId=%s, expected it to be between 7175 and 7200")
 	}
 }
 
@@ -816,18 +648,11 @@ func TestRenewLockIdNotFound(t *testing.T) {
 
 	// Create a lock.
 	err := client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{TTL: 3600})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	renewed, err := client.Renew(ctx, "bbbb", 7200)
-	if err != lock.ErrLockNotFound {
-		t.Errorf("err = %s, expected the renew to fail due to the lockId not existing", err)
-	}
-
-	if len(renewed) != 0 {
-		t.Errorf("%d locks renewed, expected %d", len(renewed), 0)
-	}
+	assert.Equal(t, lock.ErrLockNotFound, err)
+	assert.Len(t, renewed, 0, "expected to not renew any locks")
 }
 
 func TestRenewTTLExpired(t *testing.T) {
@@ -841,13 +666,9 @@ func TestRenewTTLExpired(t *testing.T) {
 
 	// Create some locks.
 	err := client.XLock(ctx, "resource1", "aaaa", lock.LockDetails{TTL: 3600})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 	err = client.SLock(ctx, "resource4", "aaaa", lock.LockDetails{TTL: 1}, -1)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	// Sleep for a short time so that we know the TTL of the second lock
 	// will be < 1.
@@ -856,13 +677,8 @@ func TestRenewTTLExpired(t *testing.T) {
 	// Make sure the renew fails due to the TTL being expired on one of
 	// the locks.
 	renewed, err := client.Renew(ctx, "aaaa", 7200)
-	if err != lock.ErrLockNotFound {
-		t.Errorf("err = %s, expected the renew to fail due to the TTL of a lock being < 1", err)
-	}
-
-	if len(renewed) > 1 {
-		t.Errorf("%d locks renewed, expected a max of %d", len(renewed), 1)
-	}
+	assert.Equal(t, lock.ErrLockNotFound, err)
+	assert.Len(t, renewed, 1, "expected to renew exactly 1 lock since the other lock with the same lockId should be expired")
 }
 
 // ------------------------------------------------------------------------- //
@@ -924,7 +740,8 @@ func initLockStatusLocks(client *lock.Client) (time.Time, error) {
 // if they are not the same. It zeros out some of the fields on the structs in
 // the "actual" argument to make comparisons easier (and still accurate for the
 // most part).
-func validateLockStatuses(actual, expected []lock.LockStatus) error {
+func validateLockStatuses(t *testing.T, actual, expected []lock.LockStatus) {
+	t.Helper()
 	// Sort actual to make checks deterministic. expected should already
 	// be in the LockStatusesByCreatedAtDesc order, but we still need to
 	// convert it to the correct type.
@@ -934,17 +751,12 @@ func validateLockStatuses(actual, expected []lock.LockStatus) error {
 	expectedSorted = expected
 	sort.Sort(actualSorted)
 
-	// Zero out some of the fields in the actual LockStatuses that make
-	// it hard to do comparisons and also aren't necessary for this function.
 	for i := range actualSorted {
-		actualSorted[i].CreatedAt = time.Time{}
-		actualSorted[i].RenewedAt = nil
-		actualSorted[i].TTL = 0
+		assert.Equal(t, expectedSorted[i].Resource, actualSorted[i].Resource, "lock %d: resource does not match", i)
+		assert.Equal(t, expectedSorted[i].LockId, actualSorted[i].LockId, "lock %d: lockId does not match", i)
+		assert.Equal(t, expectedSorted[i].Type, actualSorted[i].Type, "lock %d: type does not match", i)
+		assert.Equal(t, expectedSorted[i].Owner, actualSorted[i].Owner, "lock %d: owner does not match", i)
+		assert.Equal(t, expectedSorted[i].Host, actualSorted[i].Host, "lock %d: host does not match", i)
+		assert.Equal(t, expectedSorted[i].Comment, actualSorted[i].Comment, "lock %d: comment does not match", i)
 	}
-
-	if diff := deep.Equal(actualSorted, expectedSorted); diff != nil {
-		return fmt.Errorf("%#v", diff)
-	}
-
-	return nil
 }
