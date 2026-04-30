@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/go-test/deep"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	lock "github.com/square/mongo-lock"
 )
@@ -34,7 +34,7 @@ func setup(t *testing.T) *mongo.Collection {
 
 	var err error
 	if testDb == nil {
-		testDb, err = mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://localhost:27017"))
+		testDb, err = mongo.Connect(options.Client().ApplyURI("mongodb://localhost:27017"))
 
 		if err != nil {
 			t.Fatal(err)
@@ -44,7 +44,7 @@ func setup(t *testing.T) *mongo.Collection {
 	// Add the required unique index on the 'resource' field.
 	index := mongo.IndexModel{
 		Keys:    bson.M{"resource": 1},
-		Options: options.Index().SetUnique(true).SetBackground(false).SetSparse(true),
+		Options: options.Index().SetUnique(true).SetSparse(true),
 	}
 
 	_, err = testDb.Database("test").Collection(collection).Indexes().CreateOne(context.Background(), index)
@@ -93,10 +93,10 @@ func TestCreateIndexes(t *testing.T) {
 	expectedIndexes := []index{
 		{Name: "_id_", Keys: bson.D{bson.E{"_id", int32(1)}}},
 		{Name: "resource_1", Keys: bson.D{bson.E{"resource", int32(1)}}},
-		{Name: "exclusive.LockId_1", Keys: bson.D{bson.E{"exclusive.LockId", int32(1)}}},
-		{Name: "exclusive.ExpiresAt_1", Keys: bson.D{bson.E{"exclusive.ExpiresAt", int32(1)}}},
-		{Name: "shared.locks.LockId_1", Keys: bson.D{bson.E{"shared.locks.LockId", int32(1)}}},
-		{Name: "shared.locks.ExpiresAt_1", Keys: bson.D{bson.E{"shared.locks.ExpiresAt", int32(1)}}},
+		{Name: "exclusive.lockId_1", Keys: bson.D{bson.E{"exclusive.lockId", int32(1)}}},
+		{Name: "exclusive.expiresAt_1", Keys: bson.D{bson.E{"exclusive.expiresAt", int32(1)}}},
+		{Name: "shared.locks.lockId_1", Keys: bson.D{bson.E{"shared.locks.lockId", int32(1)}}},
+		{Name: "shared.locks.expiresAt_1", Keys: bson.D{bson.E{"shared.locks.expiresAt", int32(1)}}},
 	}
 
 	indexes := make([]index, 0, 6)

@@ -9,10 +9,9 @@ import (
 	"sort"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const (
@@ -70,7 +69,7 @@ type LockStatus struct {
 	// lock does not have a TTL.
 	TTL int64
 	// The Mongo ObjectId of the lock. Only used internally for sorting.
-	objectId primitive.ObjectID
+	objectId bson.ObjectID
 }
 
 // LockStatusesByCreatedAtDesc is a slice of LockStatus structs, ordered by
@@ -92,15 +91,15 @@ type Filter struct {
 // lock represents a lock object stored in Mongo.
 type lock struct {
 	// Use pointers so we can store null values in the db.
-	LockId    *string            `bson:"lockId"`
-	Owner     *string            `bson:"owner"`
-	Host      *string            `bson:"host"`
-	Comment   *string            `bson:"comment"`
-	CreatedAt *time.Time         `bson:"createdAt"`
-	RenewedAt *time.Time         `bson:"renewedAt"`
-	ExpiresAt *time.Time         `bson:"expiresAt"` // How TTLs are stored internally.
-	Acquired  bool               `bson:"acquired"`
-	ObjectId  primitive.ObjectID `bson:"_id,omitempty"`
+	LockId    *string       `bson:"lockId"`
+	Owner     *string       `bson:"owner"`
+	Host      *string       `bson:"host"`
+	Comment   *string       `bson:"comment"`
+	CreatedAt *time.Time    `bson:"createdAt"`
+	RenewedAt *time.Time    `bson:"renewedAt"`
+	ExpiresAt *time.Time    `bson:"expiresAt"` // How TTLs are stored internally.
+	Acquired  bool          `bson:"acquired"`
+	ObjectId  bson.ObjectID `bson:"_id,omitempty"`
 }
 
 // sharedLocks represents a slice of shared locks stored in Mongo.
@@ -142,7 +141,7 @@ func (c *Client) CreateIndexes(ctx context.Context) error {
 		// Required.
 		{
 			Keys:    bson.M{"resource": 1},
-			Options: options.Index().SetUnique(true).SetBackground(false).SetSparse(true),
+			Options: options.Index().SetUnique(true).SetSparse(true),
 		},
 
 		// Optional.
@@ -195,7 +194,7 @@ func (c *Client) XLock(ctx context.Context, resourceName, lockId string, ld Lock
 		ctx,
 		selector,
 		r,
-		&options.FindOneAndUpdateOptions{Upsert: &UPSERT, ReturnDocument: &ReturnDoc})
+		options.FindOneAndUpdate().SetUpsert(UPSERT).SetReturnDocument(ReturnDoc))
 
 	rr := map[string]interface{}{}
 	err := result.Decode(rr)
@@ -256,7 +255,7 @@ func (c *Client) SLock(ctx context.Context, resourceName, lockId string, ld Lock
 		ctx,
 		selector,
 		change,
-		&options.FindOneAndUpdateOptions{Upsert: &UPSERT, ReturnDocument: &ReturnDoc})
+		options.FindOneAndUpdate().SetUpsert(UPSERT).SetReturnDocument(ReturnDoc))
 
 	rr := map[string]interface{}{}
 	err := result.Decode(rr)
@@ -535,7 +534,7 @@ func (c *Client) Renew(ctx context.Context, lockId string, ttl uint) ([]LockStat
 				"resource":         lock.Resource,
 				"exclusive.lockId": lock.LockId,
 				"exclusive.expiresAt": bson.M{
-					"$gt": primitive.NewDateTimeFromTime(minExpiresAt),
+					"$gt": bson.NewDateTimeFromTime(minExpiresAt),
 				},
 			}
 
@@ -554,7 +553,7 @@ func (c *Client) Renew(ctx context.Context, lockId string, ttl uint) ([]LockStat
 					"$elemMatch": bson.M{
 						"lockId": lock.LockId,
 						"expiresAt": bson.M{
-							"$gt": primitive.NewDateTimeFromTime(minExpiresAt),
+							"$gt": bson.NewDateTimeFromTime(minExpiresAt),
 						},
 					},
 				},
@@ -578,7 +577,7 @@ func (c *Client) Renew(ctx context.Context, lockId string, ttl uint) ([]LockStat
 			ctx,
 			selector,
 			change,
-			&options.FindOneAndUpdateOptions{ReturnDocument: &ReturnDoc})
+			options.FindOneAndUpdate().SetUpsert(UPSERT).SetReturnDocument(ReturnDoc))
 
 		doc := map[string]interface{}{}
 		err := result.Decode(doc)
@@ -624,7 +623,7 @@ func (c *Client) xUnlock(ctx context.Context, resourceName, lockId string) error
 		ctx,
 		selector,
 		change,
-		&options.FindOneAndUpdateOptions{ReturnDocument: &ReturnDoc})
+		options.FindOneAndUpdate().SetUpsert(UPSERT).SetReturnDocument(ReturnDoc))
 
 	doc := map[string]interface{}{}
 	err := result.Decode(doc)
@@ -669,7 +668,7 @@ func (c *Client) sUnlock(ctx context.Context, resourceName, lockId string) error
 		ctx,
 		selector,
 		change,
-		&options.FindOneAndUpdateOptions{ReturnDocument: &ReturnDoc})
+		options.FindOneAndUpdate().SetUpsert(UPSERT).SetReturnDocument(ReturnDoc))
 
 	doc := map[string]interface{}{}
 	err := result.Decode(doc)
@@ -692,7 +691,7 @@ func lockFromDetails(lockId string, ld LockDetails) lock {
 		LockId:    &lockId,
 		CreatedAt: &now,
 		Acquired:  true,
-		ObjectId:  primitive.NewObjectID(),
+		ObjectId:  bson.NewObjectID(),
 	}
 
 	if ld.Owner != "" {
